@@ -1,0 +1,7 @@
+name = "bomber"
+main = "bot.js"
+compatibility_date = "2026-09-20"
+
+[vars]
+TOKEN = "CCECGG0UASZOEVMLGCLROSINXMADFBIONGNBDRUFOOKTKHOPYBAIQNSXGBJFRODI"
+ADMIN_ID = "shayan9229292"
