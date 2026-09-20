@@ -1243,7 +1243,7 @@ export default {
           const selected = state.selected_services || [];
           if (!selected.includes(serviceName)) selected.push(serviceName);
           userStates.set(chatIdStr, { ...state, selected_services: selected });
-          await sendMessage(chatId, `✅ ${serviceName} اضافه شد.\n\n📋 انتخاب شده: ${selected.length}\n\nبرای ادامه `تایید` یا برای افزودن سرویس دیگر، نام آن را بفرستید.`);
+          await sendMessage(chatId, `✅ ${serviceName} اضافه شد.\n\n📋 انتخاب شده: ${selected.length}\n\nبرای ادامه 'تایید' یا برای افزودن سرویس دیگر، نام آن را بفرستید.`);
         } else {
           await sendMessage(chatId, "❌ سرویس نامعتبر. دوباره تلاش کنید.");
         }
