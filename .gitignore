@@ -1,0 +1,6 @@
+bot_data.json
+RubkaSaveMessage.db
+*.db
+__pycache__/
+*.pyc
+.env
